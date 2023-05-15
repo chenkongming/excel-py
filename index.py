@@ -2,25 +2,46 @@ import pandas as pd
 import datetime
 import os
 from chinese_calendar import is_workday
-
-
-path = os.getcwd()#获取当前路径
+basePath = os.getcwd() # 获取当前路径
 
 # 功能函数
+def mergeArrayToObj(array):
+    # 根据数组中的key，合并对应的key值
+    # [{a:1,b:2},{a:11,b:22}] => {a:[1,11],b:[2,22]}
+    merged_dict = {}
+    for item in array:
+        for key, value in item.items():
+            if key in merged_dict:
+                merged_dict[key].append(value)
+            else:
+                merged_dict[key] = [value]
+    return merged_dict
+
 #1、合并xlsx
 def mergeXLSX(path="",path2="",sheetname=""):
     # 如果sheetname=“”，说明xlsx里面只有一个sheet，把路径1文件夹里面的所有xlsx合并成1个xlsx
     # 如果sheetname不为空，说明xlsx里面可能不止一个sheet，把路径1文件夹里面的所有xlsx的指定sheet合并成1个xlsx
     # 保存到path2的文件夹
     # 获取当前目录下的文件列表
-    excelDirPath = path + './data/path1/' # 相对当前路径
+    if path == '' or path2 == "":
+       print('mergeXLSX函数参数错误')
+       return
+    excelDirPath = basePath + path +'/' # 相对当前路径
     file_list = os.listdir(excelDirPath)
+    mergeArray = []
     for filename in file_list:
         sheet = pd.read_excel(excelDirPath + filename,sheet_name=None)
-       # print('sheet',sheet)
         for k,v in sheet.items():
             v = v.to_dict(orient='records')
-            print(k,v)
+            if sheetname!="":
+                if k == sheetname:
+                   mergeArray +=v
+            else:
+                mergeArray +=v
+    outputData = mergeArrayToObj(mergeArray)
+    output = pd.DataFrame(outputData)
+    output.to_excel(basePath + path2,index = False)   #index默认是True，导致第一列是0,1,2,3,....,设置为False后可以去掉第一列。
+    print('合并成功:' + basePath + path2)
 
 def mergeCSV(path1,path2):#把路径1文件夹里面的所有csv合并成1个csv
     pass
@@ -68,8 +89,10 @@ def analyseRecord(path):
     # 表格字段有：id，部门，员工编码，员工姓名，打卡时间，当前班次，当天最早打卡时间，当天最晚打卡时间，当天打卡次数，当天刷脸次数，是否存在迟到早退
     pass
 
+# isworkdayFlag = isworkday("2023-10-08")
+# print(f'是否为工作日: {isworkdayFlag}')
 
-mergeXLSX()
-
+mergeXLSX('/data/path1','/data/path2/result.xlsx','员工表')
+# mergeXLSX('/data/path1','/data/path2/result.xlsx')
 
 
