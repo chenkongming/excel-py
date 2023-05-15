@@ -8,17 +8,16 @@ path = os.getcwd()#获取当前路径
 
 # 功能函数
 #1、合并xlsx
-def mergeXLSX(path1,path2,sheetname=""):
+def mergeXLSX(path="",path2="",sheetname=""):
     # 如果sheetname=“”，说明xlsx里面只有一个sheet，把路径1文件夹里面的所有xlsx合并成1个xlsx
     # 如果sheetname不为空，说明xlsx里面可能不止一个sheet，把路径1文件夹里面的所有xlsx的指定sheet合并成1个xlsx
     # 保存到path2的文件夹
-
     # 获取当前目录下的文件列表
-    file_list = os.listdir(path+'/data/path1')
-    print(file_list)
+    excelDirPath = path + './data/path1/' # 相对当前路径
+    file_list = os.listdir(excelDirPath)
     for filename in file_list:
-        sheet = pd.read_excel(filename,sheet_name=None)
-        print('sheet',sheet)
+        sheet = pd.read_excel(excelDirPath + filename,sheet_name=None)
+       # print('sheet',sheet)
         for k,v in sheet.items():
             v = v.to_dict(orient='records')
             print(k,v)
@@ -70,7 +69,7 @@ def analyseRecord(path):
     pass
 
 
-
+mergeXLSX()
 
 
 
