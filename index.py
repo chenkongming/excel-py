@@ -18,33 +18,64 @@ def mergeArrayToObj(array):
     return merged_dict
 
 #1、合并xlsx
-def mergeXLSX(path="",path2="",sheetname=""):
+def mergeXLSX(path1="",path2="",sheetname=""):
     # 如果sheetname=“”，说明xlsx里面只有一个sheet，把路径1文件夹里面的所有xlsx合并成1个xlsx
     # 如果sheetname不为空，说明xlsx里面可能不止一个sheet，把路径1文件夹里面的所有xlsx的指定sheet合并成1个xlsx
     # 保存到path2的文件夹
     # 获取当前目录下的文件列表
-    if path == '' or path2 == "":
+    if path1 == '' or path2 == "":
        print('mergeXLSX函数参数错误')
        return
-    excelDirPath = basePath + path +'/' # 相对当前路径
-    file_list = os.listdir(excelDirPath)
+    dirPath = basePath + path1 +'/' # 相对当前路径
+    # 获取目录下所有的文件名
+    file_names = os.listdir(dirPath)
+     # 过滤出 CSV 文件
+    xlsx_files = [file for file in file_names if file.endswith('.xlsx')]
+     # 创建一个空的数组用于存储合并后的数据
     mergeArray = []
-    for filename in file_list:
-        sheet = pd.read_excel(excelDirPath + filename,sheet_name=None)
+    for filename in xlsx_files:
+        sheet = pd.read_excel(dirPath + filename,sheet_name=None)
         for k,v in sheet.items():
             v = v.to_dict(orient='records')
             if sheetname!="":
                 if k == sheetname:
-                   mergeArray +=v
+                    mergeArray +=v
             else:
                 mergeArray +=v
     outputData = mergeArrayToObj(mergeArray)
     output = pd.DataFrame(outputData)
     output.to_excel(basePath + path2,index = False)   #index默认是True，导致第一列是0,1,2,3,....,设置为False后可以去掉第一列。
-    print('合并成功:' + basePath + path2)
+    print('xlsx合并成功:' + basePath + path2)
 
 def mergeCSV(path1,path2):#把路径1文件夹里面的所有csv合并成1个csv
-    pass
+    # 保存到path2的文件夹
+    # 获取当前目录下的文件列表
+    if path1 == '' or path2 == "":
+       print('mergeCSV函数参数错误')
+       return
+    dirPath = basePath + path1 +'/' # 相对当前路径
+    # 获取目录下所有的文件名
+    file_names = os.listdir(dirPath)
+    # 过滤出 CSV 文件
+    csv_files = [file for file in file_names if file.endswith('.csv')]
+    # 创建一个空的 DataFrame 用于存储合并后的数据
+    merged_data = pd.DataFrame()
+    # 遍历每个 CSV 文件并合并数据
+    for file in csv_files:
+        file_path = os.path.join(dirPath, file)
+        df = pd.read_csv(file_path, encoding='utf-8-sig')  # 读取 CSV 文件
+         # 去除列名（表头）的空格
+        df.columns = df.columns.str.strip()
+            # 去除每一行的前后空格
+        df = df.apply(lambda x: x.str.strip() if x.dtype == 'object' else x)
+        merged_data = pd.concat([merged_data, df])  # 合并数据
+    # 输出合并后的数据
+    # print(merged_data)
+
+    # 可选：将合并后的数据保存为新的 CSV 文件
+    merged_data.to_csv(basePath + path2, index=False,encoding='utf-8-sig')
+    print('csv合并成功:' + basePath + path2)
+
 
 def isworkday(date):#date格式是YYYY-MM-DD
     # 判断date是否为工作日，https://github.com/LKI/chinese-calendar
@@ -59,15 +90,59 @@ def isworkday(date):#date格式是YYYY-MM-DD
 def mergeCSVtoXLSX(path):
     # 把考勤打卡记录表里面的所有csv文件合并，并保存成xlsx，保存位置还是考勤打卡记录 - 固定文件夹
     # 命名规则：考勤打卡记录合并.xlsx
-     pass
+    # 获取目录下所有的文件名
+    dirPath = basePath + path +'/' # 相对当前路径
+    file_names = os.listdir(dirPath)
+    # 过滤出CSV文件
+    csv_files = [file for file in file_names if file.endswith('.csv')]
+    # 创建一个空的DataFrame用于存储合并后的数据
+    merged_data = pd.DataFrame()
+    # 遍历每个CSV文件并合并数据
+    for file in csv_files:
+        file_path = os.path.join(path, file)
+        try:
+            df = pd.read_csv(file_path)  # 读取CSV文件
+            # 去除列名（表头）的空格
+            df.columns = df.columns.str.strip()
+            # 去除每一行的前后空格
+            df = df.apply(lambda x: x.str.strip() if x.dtype == 'object' else x)
+            merged_data = pd.concat([merged_data, df])  # 合并数据
+        except pd.errors.ParserError as e:
+            print(f"Error parsing file: {file} - {e}")
+    # 导出为XLSX文件
+    output_file = dirPath + '考勤打卡记录合并.xlsx'
+    merged_data.to_excel(output_file, index=False)
+    print('mergeCSVtoXLSX成功：',output_file)
 
-def addTagInRecord(path,facelist):
+def addTagInRecord(path="",facelist=[]):
     # 1、把“考勤打卡记录合并.xlsx”的每一列（除了打卡时间）的tab格式去掉
     # 2、新增“日期”、“时间”列，相当于把打卡时间拆开，但是打卡时间这一列不要动
     # 3、新增“是否刷脸”列，如果状态=“进”或者“出”，或者地点=facelist里面其中一个，那么值=“是”，否则值=“另行判断”
     # 4、新增id列（保存的时候放在最前面），id=员工编码+” “+日期，比如：21033887 2022-07-30
     # 5、输出保存在原文件夹，命名为：（原名）+预处理.xlsx  注：这个+是存在的
-    pass
+    # 读取Excel文件
+    if path == "":
+       print("path参数不能为空")
+       return
+    filename = basePath + path
+    outputfilename = filename.split(".xlsx")[0] + "+预处理.xlsx"
+    df = pd.read_excel(filename)
+    # 添加"日期"列和"时间"列
+    df['日期'] = df['打卡时间'].str[:10]
+    df['时间'] = df['打卡时间'].str[11:]
+
+    # 添加"id"列
+    # df['id'] = df['员工编码'].astype(str) + ' ' + df['日期'].astype(str)
+    df.insert(0, 'id', df['员工编码'].astype(str) + ' ' + df['日期'].astype(str))
+
+    # # # 添加"是否刷脸"列
+    df['是否刷脸'] = df.apply(lambda row: '是' if row['状态'] in ['进', '出'] or row['地点'] in facelist else '另行判断', axis=1)
+
+    # # # 保存修改后的Excel文件
+    df.to_excel(outputfilename, index=False)
+
+    print("预处理表格成功：" + outputfilename)
+    # pass
 
 # 按人按天统计
 def analyseRecord(path):
@@ -92,7 +167,10 @@ def analyseRecord(path):
 # isworkdayFlag = isworkday("2023-10-08")
 # print(f'是否为工作日: {isworkdayFlag}')
 
-mergeXLSX('/data/path1','/data/path2/result.xlsx','员工表')
+# mergeXLSX('/data/path1','/data/path2/result.xlsx','员工表')
 # mergeXLSX('/data/path1','/data/path2/result.xlsx')
+# mergeCSV('/data/path1','/data/path2/result.csv');
+# mergeCSVtoXLSX('./data/考勤打卡记录 - 固定')
+addTagInRecord('./data/考勤打卡记录 - 固定/考勤打卡记录合并.xlsx')
 
 
