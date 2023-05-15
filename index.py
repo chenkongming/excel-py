@@ -2,9 +2,37 @@ import pandas as pd
 import datetime
 import os
 from chinese_calendar import is_workday
+from datetime import datetime, time
+
 basePath = os.getcwd() # 获取当前路径
 
 # 功能函数
+def check_punch_time(punch_times):
+    late_time = time(9, 0, 0)   # 9点
+    early_time = time(5, 30, 0) # 5点半
+    
+    is_late = datetime.strptime(punch_times[0], "%H:%M:%S").time() > late_time
+    is_early = datetime.strptime(punch_times[1], "%H:%M:%S").time() < early_time
+    
+    if is_late and is_early:
+        return "迟到和早退"
+    elif is_late:
+        return "迟到"
+    elif is_early:
+        return "早退"
+    else:
+        return "正常"
+
+def get_min_max_time(time_list):
+    # 将时间字符串转换为datetime对象
+    time_objects = [datetime.strptime(time, "%H:%M:%S") for time in time_list]
+    
+    # 获取最小时间和最大时间
+    min_time = min(time_objects).strftime("%H:%M:%S")
+    max_time = max(time_objects).strftime("%H:%M:%S")
+    
+    return min_time, max_time
+
 def mergeArrayToObj(array):
     # 根据数组中的key，合并对应的key值
     # [{a:1,b:2},{a:11,b:22}] => {a:[1,11],b:[2,22]}
@@ -16,6 +44,59 @@ def mergeArrayToObj(array):
             else:
                 merged_dict[key] = [value]
     return merged_dict
+
+def mergeDataById(input_array):
+    output_dict = {}
+    id_field = 'id'
+    punch_time_field = '时间'
+    current_shift_field = "当前班次"
+    face_field = "是否刷脸"
+    bumen_field = "部门"
+    ygbm_field = "员工编码"
+    ygxm_field = "员工姓名"
+    dksj_field = "打卡时间"
+    for item in input_array:
+        item_id = item[id_field]
+        punch_time = item[punch_time_field]
+        current_shift = item[current_shift_field]
+        face_value = item[face_field]
+        bumen = item[bumen_field]
+        ygbm = item[ygbm_field]
+        ygxm = item[ygxm_field]
+        dksj = item[dksj_field]
+
+        if item_id not in output_dict:
+            output_dict[item_id] = {
+                punch_time_field: [],
+                current_shift_field: [],
+                face_field: [],
+                bumen_field : [],
+                ygbm_field : [],
+                ygxm_field : [],
+                dksj_field : [],
+            }
+
+        output_dict[item_id][punch_time_field].append(punch_time)
+        output_dict[item_id][current_shift_field].append(current_shift)
+        output_dict[item_id][face_field].append(face_value)
+
+        output_dict[item_id][bumen_field].append(bumen)
+        output_dict[item_id][ygbm_field].append(ygbm)
+        output_dict[item_id][ygxm_field].append(ygxm)
+        output_dict[item_id][dksj_field].append(dksj)
+
+    return output_dict
+
+def mergeXLSXData(dirPath,xlsx_files):
+     # 创建一个空的数组用于存储合并后的数据
+    mergeArray = []
+    for filename in xlsx_files:
+        sheet = pd.read_excel(dirPath + filename,sheet_name=None)
+        for k,v in sheet.items():
+            v = v.to_dict(orient='records')
+            mergeArray +=v
+    outputData = mergeDataById(mergeArray)
+    return outputData
 
 #1、合并xlsx
 def mergeXLSX(path1="",path2="",sheetname=""):
@@ -132,7 +213,6 @@ def addTagInRecord(path="",facelist=[]):
     df['时间'] = df['打卡时间'].str[11:]
 
     # 添加"id"列
-    # df['id'] = df['员工编码'].astype(str) + ' ' + df['日期'].astype(str)
     df.insert(0, 'id', df['员工编码'].astype(str) + ' ' + df['日期'].astype(str))
 
     # # # 添加"是否刷脸"列
@@ -162,7 +242,78 @@ def analyseRecord(path):
     # 输出保存还是在本文件夹
     # 命名：考勤打卡记录+统计.xlsx
     # 表格字段有：id，部门，员工编码，员工姓名，打卡时间，当前班次，当天最早打卡时间，当天最晚打卡时间，当天打卡次数，当天刷脸次数，是否存在迟到早退
+
+    if path == "":
+       print('analyseRecord函数参数不能为空')
+       return
+    dirPath = basePath + path +'/' # 相对当前路径
+    # 获取目录下所有的文件名
+    file_names = os.listdir(dirPath)
+    xlsx_files = [file for file in file_names if file.endswith('.xlsx') and "预处理" in file]
+    XLSXData = mergeXLSXData(dirPath,xlsx_files)
+    
+    # id列
+    id_list = list(XLSXData.keys())
+    # 最大时间和最小时间
+    max_time_list = []
+    min_time_list = []
+    # 当天打卡次数
+    punch_times = []
+    #当天刷脸次数
+    face_times = []
+    #迟到or早退
+    late_and_leave_early = []
+    # 部门
+    bm_list = []
+    # 员工编码，员工姓名，打卡时间，当前班次
+    ygbm_list = []
+    ygxm_list = []
+    dksj_list = []
+    dqbc_list = []
+
+    for key, value in XLSXData.items():
+        for skey, svalue in value.items():
+            if skey == '时间':
+               min_time, max_time = get_min_max_time(svalue)
+               max_time_list.append(max_time)
+               min_time_list.append(min_time)
+               punch_times.append(len(svalue))
+               if value['当前班次'].count("办公班") > 0:
+                  late_and_leave_early.append(check_punch_time([min_time,max_time]))
+               else:
+                  late_and_leave_early.append('-')
+            if skey == '是否刷脸':
+               face_times.append(svalue.count("是"))
+            if skey == '部门':
+               bm_list.append(svalue[0])   
+            if skey == '员工编码':
+               ygbm_list.append(svalue[0])
+            if skey == '员工姓名':
+               ygxm_list.append(svalue[0])
+            if skey == '打卡时间':
+               dksj_list.append(svalue)
+            if skey == '当前班次':
+               dqbc_list.append(svalue[0])    
+
+    data = {
+    'id': id_list,
+    '部门':bm_list,
+    '员工编码':ygbm_list,
+    '员工姓名':ygxm_list,
+    '打卡时间':dksj_list,
+    '当天最早打卡时间': min_time_list,
+    '当天最晚打卡时间':max_time_list,
+    '当天打卡次数':punch_times,
+    '当天刷脸次数':face_times,
+    '是否存在迟到早退':late_and_leave_early,
+    }
+    # id，部门，员工编码，员工姓名，打卡时间，当前班次，当天最早打卡时间，当天最晚打卡时间，当天打卡次数，当天刷脸次数，是否存在迟到早退
+    # 使用字典创建DataFrame
+    df = pd.DataFrame(data)
+    df.to_excel(dirPath+'考勤打卡记录+统计.xlsx', index=False)
+    print('analyseRecord成功')
     pass
+
 
 # isworkdayFlag = isworkday("2023-10-08")
 # print(f'是否为工作日: {isworkdayFlag}')
@@ -171,6 +322,7 @@ def analyseRecord(path):
 # mergeXLSX('/data/path1','/data/path2/result.xlsx')
 # mergeCSV('/data/path1','/data/path2/result.csv');
 # mergeCSVtoXLSX('./data/考勤打卡记录 - 固定')
-addTagInRecord('./data/考勤打卡记录 - 固定/考勤打卡记录合并.xlsx')
+# addTagInRecord('./data/考勤打卡记录 - 固定/考勤打卡记录合并.xlsx')
+analyseRecord('./data/考勤打卡记录 - 固定')
 
 
